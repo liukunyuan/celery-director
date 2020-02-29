@@ -61,7 +61,7 @@
                             <tr class="pointer" @click="selectRow(item)" :class="{'active': item.isSelected}">
                               <td>{{ item.fullname }}</td>
                               <td><v-ship>{{ item.created | formatDate }}</v-ship></td>
-                              <td><v-chip label :color="getColor(item.status)" class="pointer" dark>{{ item.status }}</v-chip></td>
+                              <td><v-avatar size=14 :color="item.status | statusColor"></v-avatar></td>
                             </tr>
                           </template>
                         </v-data-table>
@@ -79,11 +79,11 @@
                           <v-list-item-content>
                             <div class="overline mb-3">{{ selectedWorkflow.fullname }}</div>
                             <v-list-item-title class="headline mb-1">
+                                <v-avatar size=20 :color="selectedWorkflow.status | statusColor"></v-avatar>
                                 {{ selectedWorkflow.created | formatDate }}
                                 <v-chip v-if="selectedWorkflow.periodic" class="ma-2" small>periodic</v-chip>
-                                <v-chip small :color="getColor(selectedWorkflow.status)" dark>{{ selectedWorkflow.status }}</v-chip>
                             </v-list-item-title>
-                            <v-list-item-subtitle class="mb-4">
+                            <v-list-item-subtitle class="mb-4 mt-2">
                               <u>Tasks :</u> Total <strong>{{ selectedWorkflow.tasks.length }}</strong> / Success <strong>{{ selectedWorkflow.tasks | countTasksByStatus('success') }}</strong> / Error <strong>{{ selectedWorkflow.tasks | countTasksByStatus('error') }}</strong>
                             </v-list-item-subtitle>
                           </v-list-item-content>
@@ -97,10 +97,89 @@
                         <v-divider ></v-divider>
                       </div>
                       <v-row no-gutters>
-                          <v-col cols="12" md="7">
-                              <div id="network"></div>
-                          </v-col>
-                          <v-col cols="12" md="5" v-if="selectedWorkflow">
+                          <v-sheet
+                          class="overflow-hidden"
+                          style="position: relative;"
+                          >
+                            <v-col cols="12" md="5">
+                                <div class="graph">
+                                  <svg width=900 height=480><g/></svg>
+                                </div>
+                            </v-col>
+                            <v-navigation-drawer
+                              absolute
+                              right
+                              width=600
+                              v-model="selectedTask"
+                              temporary
+                              class="overflow-hidden"
+                            >
+                              <template v-slot:prepend>
+                                <v-list-item two-line v-if="selectedTask">
+                                  <v-list-item-avatar>
+                                      <v-avatar size=32 :color="selectedTask.status | statusColor"></v-avatar>
+                                  </v-list-item-avatar>
+
+                                  <v-list-item-content>
+                                    <v-list-item-title>{{ selectedTask.key }}</v-list-item-title>
+                                    <v-list-item-subtitle>{{ selectedTask.id }}</v-list-item-subtitle>
+                                  </v-list-item-content>
+                                </v-list-item>
+                              </template>
+                              <v-divider></v-divider>
+                              <div class="pa-2 mb-2" v-if="selectedTask">
+                                  <v-tabs v-model="tab" grow color="director">
+                                    <v-tab>Task Details</v-tab>
+                                    <v-tab>Result</v-tab>
+                                    <v-tab>Logs</v-tab>
+                                  </v-tabs>
+                                  <div class="pa-4">
+                                    <v-tabs-items v-model="tab">
+                                        <v-simple-table v-if="tab == 0">
+                                          <template>
+                                            <tbody>
+                                              <tr>
+                                                <td><strong>ID</strong></td>
+                                                <td>{{ selectedTask.id }}</td>
+                                              </tr>
+                                              <tr>
+                                                <td><strong>Key</strong></td>
+                                                <td>{{ selectedTask.key }}</td>
+                                              </tr>
+                                              <tr>
+                                                <td><strong>Status</strong></td>
+                                                <td>{{ selectedTask.status }}</td>
+                                              </tr>
+                                              <tr>
+                                                <td><strong>Created</strong></td>
+                                                <td>{{ selectedTask.created }}</td>
+                                              </tr>
+                                              <tr>
+                                                <td><strong>Updated</strong></td>
+                                                <td>{{ selectedTask.updated }}</td>
+                                              </tr>
+                                            </tbody>
+                                          </template>
+                                        </v-simple-table>
+                                        <div v-if="tab == 1">
+                                            Here the result
+                                          </div>
+                                        <div v-if="tab == 2">
+                                          Here the logs
+                                        </div>
+                                    </v-tabs-items>
+                                  </div>
+                              </div>
+                              <template v-slot:append>
+                                  <div class="pa-6">
+                                    <v-btn block href="%% config.FLOWER_URL %%/task/{{ selectedTask.id }}" target="_blank" outlined color="director">
+                                      <v-icon left>mdi-launch</v-icon> View in Flower
+                                    </v-btn>
+                                  </div>
+                                </template>
+                            </v-navigation-drawer>
+                          </v-sheet>
+                          <!--<v-col cols="12" md="5" v-if="selectedWorkflow">
                             <v-list two-line class="overflow-y-auto" max-height="468">
                               <v-list-item-group v-model="taskIndex">
                                 <template v-for="(task, index) in selectedWorkflow.tasks">
@@ -125,7 +204,7 @@
                                 </template>
                               </v-list-item-group>
                             </v-list>
-                          </v-col>
+                          </v-col>-->
                       </v-row>
                       
                     </v-card>
@@ -195,6 +274,8 @@
   <script src="https://cdn.jsdelivr.net/npm/moment@2.24.0/min/moment.min.js" integrity="sha256-4iQZ6BVL4qNKlQ27TExEhBN1HFPvAvAMbFavKKosSWQ=" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/axios@0.19.0/dist/axios.min.js" integrity="sha256-S1J4GVHHDMiirir9qsXWc8ZWw74PHHafpsHp5PXtjTs=" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/vis-network@6.5.0/dist/vis-network.min.js" integrity="sha256-/205cYeu7g6jIOcLtaBIGbAWyGBNg6UUyxWTw1YIFHA=" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/5.15.0/d3.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dagre-d3/0.6.4/dagre-d3.js" crossorigin="anonymous"></script>
   {% else %}
   <script src="%% url_for('user.static', filename='vue.min.js') %%"></script>
   <script src="%% url_for('user.static', filename='vuex.min.js') %%"></script>

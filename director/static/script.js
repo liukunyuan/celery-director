@@ -85,48 +85,63 @@ const store = new Vuex.Store({
       state.selectedTask = task
     },
     refreshNetwork(state, tasks) {
-      let nodes = [];
-      let edges = [];
-    
+      var g = new dagreD3.graphlib.Graph().setGraph({});
+
       for (let i = 0; i < tasks.length; i++) {
-        nodes.push(getNode(tasks[i]));
+        var className = tasks[i].status;
+        var html = "<div class=pointer>";
+            html += "<span class=status></span>";
+            html += "<span class=name>"+tasks[i].key+"</span>";
+            html += "<br>"
+            html += "<span class=details>"+tasks[i].id+"</span>";
+            html += "</div>";
+
+        var color = COLORS[tasks[i].status]["background"];
+        g.setNode(tasks[i].id, {
+          labelType: "html",
+          label: html,
+          rx: 3,
+          ry: 3,
+          padding: 0,
+          class: className
+        });
 
         for (let j=0; j<tasks[i].previous.length; j++) {
-          edges.push({
-            'to': tasks[i].id,
-            'from': tasks[i].previous[j],
-            'color': {
-              'color': '#3c4652',
-              'highlight':'#3c4652',
-            },
-            'arrows': 'to',
-            'physics': false, 'smooth': {'type': 'cubicBezier'}
-          });
+          g.setEdge(tasks[i].previous[j], tasks[i].id, {});
         }
+        
       }
 
-      container = document.getElementById('network')
-      let data = {nodes:  nodes, edges: edges};
-      let options = {
-        nodes: {
-          margin: 10
-        },
-        layout: {
-          hierarchical: {
-            direction: "UD",
-            sortMethod: "directed"
-          }
-        },
-        edges: {
-          arrows: "to"
-        },
-      };
-      state.network = new vis.Network(container, data, options);
-      state.network.on( 'click', function(properties) {
-        if ( properties.nodes.length > 0 ) {
-          let taskID = properties.nodes[0];
-          state.taskIndex = tasks.findIndex(c => c.id == taskID);
-        }
+      // Set some general styles
+      g.nodes().forEach(function(v) {
+        var node = g.node(v);
+        node.rx = node.ry = 5;
+      });
+
+
+      var svg = d3.select("svg"),
+          inner = svg.select("g");
+      
+      // Set up zoom support
+      var zoom = d3.zoom().on("zoom", function() {
+            inner.attr("transform", d3.event.transform);
+          });
+      inner.call(zoom.transform, d3.zoomIdentity);
+      svg.call(zoom);
+
+      // Create the renderer
+      var render = new dagreD3.render();
+
+      // Run the renderer. This is what draws the final graph.
+      render(inner, g);
+
+      // Center the graph
+      var initialScale = 1.0;
+      svg.call(zoom.transform, d3.zoomIdentity.translate((svg.attr("width") - g.graph().width * initialScale) / 2, 20).scale(initialScale));
+
+      var nodes = inner.selectAll("g.node");
+      nodes.on('click', function (task_id) {
+        state.selectedTask = tasks.find(c => c.id == task_id);
       });
     },
     changeLoadingState(state, loading) {
@@ -168,18 +183,15 @@ new Vue({
     }),
     data: () => ({
       drawer: null,
+      tab: null,
       payloadDialog: false,
       taskDialog: false,
       relaunchDialog: false,
       search: '',
       headers: [
-        {
-          text: 'Name',
-          align: 'left',
-          value: 'fullname',
-        },
-        { text: 'Date', value: 'created' },
-        { text: 'Status', value: 'status' },
+        { text: 'Name', align: 'left', value: 'fullname',},
+        { text: 'Date', align: 'left', value: 'created' },
+        { text: '', value: 'status', sortable: false },
       ],
     }),
     methods: {
